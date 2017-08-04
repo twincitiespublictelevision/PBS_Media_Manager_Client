@@ -1,8 +1,8 @@
 # PBS Media Manager Client
-PHP class that provides a client for the PBS Media Manager API
+PHP class that provides a client for the PBS Media Manager API.  Full documentation for that API is at <https://docs.pbs.org/display/CDA/Media+Manager+API>.
 
 ## Requirements
-The client requires at least PHP version 5.6, and the cURL library <http://php.net/manual/en/book.curl.php>
+The client requires at least PHP version 5.6, and the cURL library <http://php.net/manual/en/book.curl.php>.
 
 ## Usage
 Invoke the client as so:
@@ -124,7 +124,7 @@ $client->update_object($cid, $object_type, $attributes);
 
 args are
 * $cid of the object 
-* $object_type can be 'asset'.   For the moment, PBS doesn't support updating 'episode' or 'special' but they say they're coming.  'season', 'show', etc aren't on the roadmap.
+* $object_type can be 'asset', 'episode', or 'special'.   For the moment, PBS doesn't support 'season', 'show', etc.
 * $attributes is an array, matching the required/optional attributes for the object.  For instance an asset might have
 ```php
 $attributes = array(
@@ -196,7 +196,10 @@ returns the asset object.
 
 
 ## Changelog
+* Version 1.1 -- changed update object to take account for new PBS functionality of updatable episodes and specials, bugfix for certain url entities needing to be escaped
+
 * Version 1.0 STABLE -- refined results, documentation in place, can perform all core functions that the API provides.
+
 * Version .01 ALPHA -- connects to API, provides basic read, list, update, create, and delete functionality.
 
 ## Authors
