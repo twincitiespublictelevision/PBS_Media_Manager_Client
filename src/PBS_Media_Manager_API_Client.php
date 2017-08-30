@@ -2,24 +2,26 @@
 
 namespace twincitiespublictelevision\PBS_Media_Manager_Client;
 
+// @codingStandardsIgnoreFile
+
 /**
  * @file
  * PBS Media Manager API Client.
  *
  * Authors: William Tam (tamw@wnet.org), Augustus Mayo (amayo@tpt.org),
- * Aaron Crosman (aaron.crosman@cyberwoven.com)
- * version 1.1.1 2017-07-28
+ * Aaron Crosman (aaron.crosman@cyberwoven.com), Jess Snyder (jsnyder@weta.org)
+ * version 2.0.1 2017-08-14
  */
 
 /**
- * PBS Media Manager API Client Class.
+ * Class PBS_Media_Manager_API_Client.
  */
 class PBS_Media_Manager_API_Client {
   private $client_id;
   private $client_secret;
   private $base_endpoint;
   private $auth_string;
-  public  $container_types;
+  public  $valid_endpoints;
   public  $passport_windows;
   public  $asset_types;
   public  $episode_asset_types;
@@ -104,6 +106,34 @@ class PBS_Media_Manager_API_Client {
   }
 
   /**
+   * Reformat API responses as an array.
+   *
+   * @param string $response
+   *   The response from the API.
+   *
+   * @return array
+   *   The response formatted as an array.
+   */
+  private function make_response_array($response) {
+    $myarray = array();
+    $data = explode("\n", $response);
+    if (strpos($data[0], 'HTTP') === 0) {
+      // the first line is a status code
+      $myarray['status'] = $data[0];
+      array_shift($data);
+    }
+    foreach ($data as $part) {
+      if (json_decode($part)) {
+        $myarray[] = json_decode($part);
+        continue;
+      }
+      $middle = explode(": ", $part, 2);
+      $myarray[trim($middle[0])] = trim($middle[1]);
+    }
+    return $myarray;
+  }
+
+  /**
    * Get request.
    *
    * @param string $query
@@ -113,7 +143,6 @@ class PBS_Media_Manager_API_Client {
    *   The result from the API.
    */
   public function get_request($query) {
-    $return = array();
     $request_url = $this->base_endpoint . $query;
     $ch = $this->build_curl_handle($request_url);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
@@ -123,10 +152,23 @@ class PBS_Media_Manager_API_Client {
     curl_close($ch);
     $json = json_decode($result, TRUE);
     if (empty($json)) {
-      return array('errors' => array('info' => $info, 'response' => $result));
+      $result = $this->make_response_array($result);
+      return array(
+        'errors' => array(
+          'info' => $info,
+          'errors' => $errors,
+          'response' => $result,
+        ),
+      );
     }
     if ($info['http_code'] != 200) {
-      return array('errors' => array('info' => $info, 'response' => $json));
+      return array(
+        'errors' => array(
+          'info' => $info,
+          'errors' => $errors,
+          'response' => $json,
+        ),
+      );
     }
     return $json;
   }
@@ -157,8 +199,7 @@ class PBS_Media_Manager_API_Client {
         "attributes" => $attribs,
       ),
     );
-    /* In the MM API, create is a POST. */
-    $return = array();
+    /* in the MM API, create is a POST */
     $payload_json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     $request_url = $this->base_endpoint . $endpoint;
     $ch = $this->build_curl_handle($request_url);
@@ -171,7 +212,14 @@ class PBS_Media_Manager_API_Client {
     $errors = curl_error($ch);
     curl_close($ch);
     if (!in_array($info['http_code'], array(200, 201, 202, 204))) {
-      return array('errors' => array('errors' => $errors, 'result' => $result));
+      $result = $this->make_response_array($result);
+      return array(
+        'errors' => array(
+          'info' => $info,
+          'errors' => $errors,
+          'result' => $result,
+        ),
+      );
     }
     /*
      * A successful request will return a 20x and the location of the created
@@ -223,6 +271,24 @@ class PBS_Media_Manager_API_Client {
   }
 
   /**
+   * Modify query strings for submission to the API.
+   *
+   * @param array $args
+   *   The arguments for the query.
+   *
+   * @return mixed|string
+   *   The modified query.
+   */
+  public function build_pbs_querystring($args) {
+    $querystring = !empty($args) ? "?" . http_build_query($args) : "";
+    // PBS's endpoints don't like encoded entities.
+    $querystring = str_replace("%3A", ":", $querystring);
+    $querystring = str_replace("%3D", "=", $querystring);
+    $querystring = str_replace("%26", "&", $querystring);
+    return $querystring;
+  }
+
+  /**
    * Main constructor for updating objects.
    *
    * Asset, episode, special, collection, season.
@@ -258,6 +324,7 @@ class PBS_Media_Manager_API_Client {
     $errors = curl_error($ch);
     curl_close($ch);
     if (!in_array($info['http_code'], array(200, 201, 202, 204))) {
+      $result = $this->make_response_array($result);
       return array(
         'errors' => array(
           'info' => $info,
@@ -291,6 +358,7 @@ class PBS_Media_Manager_API_Client {
     $errors = curl_error($ch);
     curl_close($ch);
     if (!in_array($info['http_code'], array(200, 201, 202, 204))) {
+      $result = $this->make_response_array($result);
       return array(
         'errors' => array(
           'info' => $info,
@@ -314,17 +382,23 @@ class PBS_Media_Manager_API_Client {
    *    The type.
    * @param bool $private
    *    Whether the item is private.
+   * @param array $queryargs
+   *   The arguments for the query.
    *
    * @return array|mixed
    *    The items.
    */
-  public function get_item_of_type($id, $type, $private = FALSE) {
-    $query = "/" . $type . "s/" . $id . "/";
+  public function get_item_of_type($id, $type, $private = FALSE, $queryargs = array()) {
+    $endpoint = "/" . $type . "s/" . $id . "/";
     // Unpublished, 'private' items have to do a GET on the update endpoint.
-    if ($private) {
-      $query = $this->_get_update_endpoint($id, $type);
+    if ($private === TRUE) {
+      $endpoint = $this->_get_update_endpoint($id, $type);
     }
-    return $this->get_request($query);
+    if (empty($queryargs) && is_array($private)) {
+      $queryargs = $private;
+    }
+    $querystring = $this->build_pbs_querystring($queryargs);
+    return $this->get_request($endpoint . $querystring);
   }
 
   /**
@@ -368,11 +442,7 @@ class PBS_Media_Manager_API_Client {
     }
 
     while ($page) {
-      $querystring = !empty($args) ? "?" . http_build_query($args) : "";
-      // PBS's endpoints don't like encoded entities.
-      $querystring = str_replace("%3A", ":", $querystring);
-      $querystring = str_replace("%3D", "=", $querystring);
-      $querystring = str_replace("%26", "&", $querystring);
+      $querystring = $this->build_pbs_querystring($args);
       $rawdata = $this->get_request($endpoint . $querystring);
       if (empty($rawdata['data'])) {
         return $rawdata;
@@ -611,12 +681,14 @@ class PBS_Media_Manager_API_Client {
    *   The ID.
    * @param bool $private
    *   Whether the asset is private.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the asset.
    */
-  public function get_asset($id, $private = FALSE) {
-    return $this->get_item_of_type($id, 'asset', $private);
+  public function get_asset($id, $private = FALSE, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'asset', $private, $queryargs);
   }
 
   /**
@@ -624,14 +696,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
-   * @param bool $private
-   *   Whether the asset is private.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the episode.
    */
-  public function get_episode($id, $private = FALSE) {
-    return $this->get_item_of_type($id, 'episode', $private);
+  public function get_episode($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'episode', $queryargs);
   }
 
   /**
@@ -639,14 +711,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
-   * @param bool $private
-   *   Whether the asset is private.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the special.
    */
-  public function get_special($id, $private = FALSE) {
-    return $this->get_item_of_type($id, 'special', $private);
+  public function get_special($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'special', $queryargs);
   }
 
   /**
@@ -654,12 +726,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the collection.
    */
-  public function get_collection($id) {
-    return $this->get_item_of_type($id, 'collection');
+  public function get_collection($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'collection', $queryargs);
   }
 
   /**
@@ -667,12 +741,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the season.
    */
-  public function get_season($id) {
-    return $this->get_item_of_type($id, 'season');
+  public function get_season($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'season', $queryargs);
   }
 
   /**
@@ -680,12 +756,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the show.
    */
-  public function get_show($id) {
-    return $this->get_item_of_type($id, 'show');
+  public function get_show($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'show', $queryargs);
   }
 
   /**
@@ -693,12 +771,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the asset.
    */
-  public function get_remote_asset($id) {
-    return $this->get_item_of_type($id, 'remote-asset');
+  public function get_remote_asset($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'remote-asset', $queryargs);
   }
 
   /**
@@ -706,12 +786,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the asset.
    */
-  public function get_franchise($id) {
-    return $this->get_item_of_type($id, 'franchise');
+  public function get_franchise($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'franchise', $queryargs);
   }
 
   /**
@@ -719,12 +801,14 @@ class PBS_Media_Manager_API_Client {
    *
    * @param string $id
    *   The ID.
+   * @param array $queryargs
+   *   The query arguments.
    *
    * @return array|mixed
    *   Returns the station.
    */
-  public function get_station($id) {
-    return $this->get_item_of_type($id, 'station');
+  public function get_station($id, $queryargs = array()) {
+    return $this->get_item_of_type($id, 'station', $queryargs);
   }
 
   /* Shortcut functions for lists. */
