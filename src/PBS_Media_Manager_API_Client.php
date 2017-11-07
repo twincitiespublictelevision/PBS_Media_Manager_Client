@@ -10,7 +10,7 @@ namespace twincitiespublictelevision\PBS_Media_Manager_Client;
  *
  * Authors: William Tam (tamw@wnet.org), Augustus Mayo (amayo@tpt.org),
  * Aaron Crosman (aaron.crosman@cyberwoven.com), Jess Snyder (jsnyder@weta.org)
- * version 2.0.1 2017-08-14
+ * version 2.0.3 2017-10-31
  */
 
 /**
@@ -285,6 +285,11 @@ class PBS_Media_Manager_API_Client {
     $querystring = str_replace("%3A", ":", $querystring);
     $querystring = str_replace("%3D", "=", $querystring);
     $querystring = str_replace("%26", "&", $querystring);
+    $querystring = str_replace("%2C", ",", $querystring);
+    $querystring = str_replace("%28", "(", $querystring);
+    $querystring = str_replace("%29", ")", $querystring);
+    // special case for audience-scope[x], platform-slug[x], etc
+    $querystring = preg_replace("/(%5B\d%5D)/", "", $querystring);
     return $querystring;
   }
 
@@ -593,20 +598,101 @@ class PBS_Media_Manager_API_Client {
    *   Parent ID.
    * @param string $parent_type
    *   Parent type.
+   * @param string $image_profile
+   *   A single image to extract.
    *
    * @return array
-   *   Returns an array of images.
+   *   Returns an array of images, or the single image profile requested.
    */
-  public function get_images($parent_id, $parent_type) {
+  public function get_images($parent_id, $parent_type, $image_profile = '') {
     $returnary = array();
     $parent = $this->get_item_of_type($parent_id, $parent_type);
+
+    if (empty($response_object['data']['attributes']['images'])) {
+      return $returnary;
+    }
+
     foreach ($parent['data']['attributes']['images'] as $image) {
-      $returnary[] = $image;
+      if (!empty($image_profile)) {
+        if (stristr($image['profile'], $image_profile)) {
+          return $image;
+        }
+      }
+      else {
+        $returnary[] = $image;
+      }
     }
     return $returnary;
   }
 
   /* Special functions */
+
+  /**
+   * Extract a specific image from an object.
+   *
+   * Similar to get_images above, but instead of returning a list of images via
+   * a new request, it extracts a specific image from a previous request.
+   *
+   * @param array $response_object
+   *   The response object provided by a previous request.
+   * @param string $image_profile
+   *   The name of a specific image profile to retreive.
+   *
+   * @return array|bool
+   *   The image array for the provided profile.
+   */
+  public static function extract_image($response_object, $image_profile) {
+     // If there are no images on the response_object bail.
+     if (empty($response_object['attributes']['images'])) {
+       return FALSE;
+     }
+
+     // Check the images for the one we want.
+     foreach ($response_object['attributes']['images'] as $image) {
+       if (stristr($image['profile'], $image_profile)) {
+         return $image;
+       }
+     }
+
+     // If we didn't find an image default to False.
+     return FALSE;
+   }
+
+  /**
+   * Use PBS's image server to resize, crop, and otherwise alter images.
+   *
+   * This function uses PBS's image handler service to adjust images
+   * automatically. It also forces HTTPS on all URLs. Note that the resize
+   * function maintains aspect ratios and so generated images may not conform
+   * to the exact sizes provided to this function.
+   *
+   * @param string $image_url
+   *   The initial URL for the image from PBS's image service.
+   * @param string $operation
+   *   Crop or Resize to adjust the images.
+   * @param int $width
+   *   The desired width of the image.
+   * @param int $height
+   *   The desired height of the image.
+   * @param string $type
+   *   The image type to convert the image to, maintains default if not set.
+   */
+  public static function alter_pbs_image($image_url, $operation, $width, $height, $type = '') {
+
+    if ($type == '') {
+      $list = explode('.', $image_url);
+      $extension = end($list);
+    }
+    else {
+      $extension = $type;
+    }
+    // PBS supports HTTPS, so use it.
+    $image_url = str_replace("http://", "https://", $image_url);
+
+    $new_url = $image_url . '.' . $operation . '.' . $width . "x" . $height . '.' . $extension;
+
+    return $new_url;
+  }
 
   /**
    * Legacy function to get assets by TP Media Object ID.
