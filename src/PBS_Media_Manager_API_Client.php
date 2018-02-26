@@ -289,7 +289,7 @@ class PBS_Media_Manager_API_Client {
     $querystring = str_replace("%28", "(", $querystring);
     $querystring = str_replace("%29", ")", $querystring);
     // special case for audience-scope[x], platform-slug[x], etc
-    $querystring = preg_replace("/(%5B\d%5D)/", "", $querystring);
+    $querystring = preg_replace("/(%5B\d+%5D)/", "", $querystring);
     return $querystring;
   }
 
@@ -493,13 +493,15 @@ class PBS_Media_Manager_API_Client {
    *   Type.
    * @param array $queryargs
    *   The arguments for the query.
+   * @param bool $include_metadata
+   *   Option to include metadata in the results.
    *
    * @return array
    *   An array of items.
    */
-  public function get_child_items_of_type($parent_id, $parent_type, $type, $queryargs = array()) {
+  public function get_child_items_of_type($parent_id, $parent_type, $type, $queryargs = array(), $include_metadata = FALSE) {
     $query = "/" . $parent_type . "s/" . $parent_id . "/" . $type . "s/";
-    return $this->get_list_data($query, $queryargs);
+    return $this->get_list_data($query, $queryargs, $include_metadata);
   }
 
   /**
@@ -930,6 +932,20 @@ class PBS_Media_Manager_API_Client {
    */
   public function get_shows($queryargs = array()) {
     $query = "/shows/";
+    return $this->get_list_data($query, $queryargs);
+  }
+
+  /**
+   * Get a list of assets.
+   *
+   * @param array $queryargs
+   *   The query arguments. For example, show-id or type.
+   *
+   * @return array
+   *   Returns a list of assets.
+   */
+  public function get_assets($queryargs = array()) {
+    $query = "/assets/";
     return $this->get_list_data($query, $queryargs);
   }
 

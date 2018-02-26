@@ -82,10 +82,27 @@ $client->get_franchises(array('platform-slug' => 'bento'));
 
 As noted above, a query argument array is an optional argument.
 
+#### Get a list of available assets 
+
+```php
+$client->get_assets();
+$client->get_assets(array('platform-slug' => 'partnerplayer', 'show-id' => 
+{show_id}));
+$client->get_assets(array('platform-slug' => 'partnerplayer', 'show-id' => {show_id}, 'type' => 'full_length));
+```
+
+As noted above, a query argument array is an optional argument. Adding the show-id will return all assets belonging to that show, regardless of the hierarchy (i.e., it returns assets for all seasons, episodes, or specials connected to the show).
+
+You can look up an asset by TP Media ID using this method also:
+```php
+$client->get_assets(array('tp-media-id' => $tp_media_id, 'platform-slug' => 'partnerplayer'));
+```
+
+
 #### Get a list of child elements of the given CID 
 
 ```php
-$client->get_child_items_of_type($parent_id, $parent_type, $type, $queryargs = array());
+$client->get_child_items_of_type($parent_id, $parent_type, $type, $queryargs = array(), $include_metadata = FALSE);
 ```
 
 To get a list of the assets for an episode that are available in the partner player,
@@ -111,6 +128,12 @@ To implement paging, add an array arg with a 'page' element that is the correspo
 ```php
 $client->get_shows(array('page' => 2));
 $client->get_season_episodes($cid, array('page' => 3));
+```
+
+Additionally you can combine the 'page' element with a 'page-size' element to control how many elements the returned page contains. 'page-size' generally supports sizes of 1-50.
+
+```php
+$client->get_shows(array('page-size' => 10, 'page' => 2)); // Returns shows 11 through 20
 ```
 
 This array can also contain the platform-slug values etc.
@@ -247,10 +270,10 @@ More details on options in the PBS documentation from <https://docs.pbs.org/disp
 
 No 'since' given will dump all changes in the last 24 hours.
 
-Here's an example of combining args -- all assets updated since March 6 at 6:35pm UTC:
+Here's an example of combining args -- all assets updated since March 6 at 6:35pm UTC, sorted oldest to newest
 
 ```php
-$client->get_changelog( array('since' => '2017-03-06T06:35:36.001Z', 'type' => 'asset', 'action' => 'update'));
+$client->get_changelog( array('since' => '2017-03-06T06:35:36.001Z', 'sort' => 'timestamp', 'type' => 'asset', 'action' => 'update'));
 ```
 
 #### Look up an asset by TP Media Id
@@ -260,6 +283,13 @@ $client->get_asset_by_tp_media_id($tp_media_id)
 ```
 
 returns the asset object.
+
+Note that this can also be accomplished with 
+
+```php
+$client->get_assets(array('tp-media-id' => $tp_media_id));
+```
+
 
 
 ## Changelog
