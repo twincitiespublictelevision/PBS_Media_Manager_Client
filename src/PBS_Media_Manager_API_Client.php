@@ -123,6 +123,9 @@ class PBS_Media_Manager_API_Client {
       array_shift($data);
     }
     foreach ($data as $part) {
+      if (empty(trim($part))) {
+        continue;
+      }
       if (json_decode($part)) {
         $myarray[] = json_decode($part);
         continue;
