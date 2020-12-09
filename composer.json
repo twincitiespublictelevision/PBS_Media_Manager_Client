@@ -2,7 +2,7 @@
   "name": "twincitiespublictelevision/pbs_media_manager_client",
   "autoload": {
     "psr-4": {
-      "twincitiespublictelevision\\pbs_media_manager_client\\": "src/"
+      "twincitiespublictelevision\\PBS_Media_Manager_Client\\": "src/"
     }
   }
 }
