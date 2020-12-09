@@ -1,6 +1,6 @@
 <?php
 
-namespace twincitiespublictelevision\PBS_Media_Manager_Client;
+namespace twincitiespublictelevision\pbs_media_manager_client;
 
 // @codingStandardsIgnoreFile
 
